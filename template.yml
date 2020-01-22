@@ -17,6 +17,10 @@ Parameters:
         Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
         Type: String
         Default: 10.168.11.0/24
+    ScenarioDefinitionDocument:
+        Description: Please enter the filename for the scenario definition document used to define scenarios to launch.
+        Type: String
+        Default: "scenarios.json"
 Resources:
   RobotApplication:
     Type: "AWS::RoboMaker::RobotApplication"
@@ -239,6 +243,7 @@ Resources:
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref SimulationRunnerStepFunction
+          SCENARIO_DEFINITIONS_FILENAME: !Ref ScenarioDefinitionDocument 
   SimulationRunnerStepFunction:
     Type: AWS::StepFunctions::StateMachine
     DependsOn:

@@ -24,6 +24,7 @@ import time
 import uuid
 import os
 import boto3
+from copy import deepcopy
 
 def lambda_handler(event, context):
     
@@ -32,7 +33,6 @@ def lambda_handler(event, context):
         'codePipelineJobId': event['codePipelineJobId'],
         'jobs': []
     }
-    simulation = None
     
     for simulation in event['simulations']:
             
@@ -54,9 +54,9 @@ def lambda_handler(event, context):
         
         for x, scenario in enumerate(simulation['scenarios']):
             
-            _sim_params = simulation['params']
-            
             if scenario in event['scenarios'].keys():
+                
+                _sim_params = deepcopy(simulation['params'])
                 
                 print("Scenario %s found..." % scenario)
         

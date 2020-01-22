@@ -9,6 +9,7 @@ pipeline = boto3.client('codepipeline')
 step_functions = boto3.client('stepfunctions')
 s3_resource = boto3.resource('s3')
 STATE_MACHINE_ARN = os.getenv('STATE_MACHINE_ARN')
+SCENARIO_DEFINITIONS_FILENAME = os.getenv('SCENARIO_DEFINITIONS_FILENAME')
 
 def lambda_handler(event, context):
     
@@ -25,7 +26,7 @@ def lambda_handler(event, context):
         
         for filename in zipOut.namelist():
             print(filename)
-            if (filename=='batchSim.json'):
+            if (filename==SCENARIO_DEFINITIONS_FILENAME):
                 filecontent = zipOut.open(filename)
                 launch_json = json.loads(filecontent.read())
                 launch_json['codePipelineJobId'] = job_id
