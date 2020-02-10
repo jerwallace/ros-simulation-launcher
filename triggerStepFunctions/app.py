@@ -49,6 +49,3 @@ def lambda_handler(event, context):
             "code_pipeline_response": code_pipeline_response
         }, indent=4, sort_keys=True, default=str),
     }
-    
-    
-    

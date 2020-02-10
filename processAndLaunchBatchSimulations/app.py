@@ -26,13 +26,19 @@ import os
 import boto3
 from copy import deepcopy
 
+client = boto3.client('robomaker')
+
 def lambda_handler(event, context):
     
     output = {
         'isValid': True,
+        'isDone': False,
         'codePipelineJobId': event['codePipelineJobId'],
-        'jobs': []
+        'batchSimJobArn': None,
+        'createdRequests': None
     }
+    
+    jobs = []
     
     for simulation in event['simulations']:
             
@@ -75,12 +81,26 @@ def lambda_handler(event, context):
                 
                 print("Adding following job: " + json.dumps(_sim_params))
                 
-                output['jobs'].append(_sim_params)
+                jobs.append(_sim_params)
                 
             else:
                 output['isValid'] = False
                 output['error'] = {
                     "Cause": "Scenario not defined."
                 }
+                
+        response = client.start_simulation_job_batch(
+        batchPolicy={
+            'timeoutInSeconds': 800,
+            'maxConcurrency': 2
+        }, 
+        createSimulationJobRequests=jobs, 
+        tags = {
+             'launcher': 'cicd_pipeline',
+             'codePipelineJobId': event['codePipelineJobId']
+        })
+        
+        output['batchSimJobArn'] = response['arn']
+        output['createdRequests'] = response['createdRequests']
         
     return output

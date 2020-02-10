@@ -102,7 +102,7 @@ Resources:
   RoboMakerSimulationRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub robomaker-simulation-role-${AWS::Region}
+      RoleName: !Sub robomaker-simulation-role-batch-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -132,7 +132,7 @@ Resources:
             - states.amazonaws.com
           Action:
           - sts:AssumeRole
-      RoleName: !Sub step-functions-role-${AWS::Region}
+      RoleName: !Sub step-functions-batch-role-${AWS::Region}
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/CloudWatchFullAccess'
         - 'arn:aws:iam::aws:policy/AWSRoboMakerFullAccess'
@@ -143,7 +143,7 @@ Resources:
   RoboMakerDeploymentRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub robomaker-deployment-role-${AWS::Region}
+      RoleName: !Sub robomaker-deployment-role-batch-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -182,10 +182,10 @@ Resources:
       SubnetId: !Ref PublicSubnet2
   S3Bucket:
     Type: AWS::S3::Bucket
-  ProcessInputFunction:
+  ProcessAndLaunchBatchSimulationsFunction:
     Type: AWS::Serverless::Function 
     Properties:
-      CodeUri: processInput/
+      CodeUri: processAndLaunchBatchSimulations/
       Handler: app.lambda_handler
       Runtime: python3.8
       Role: !GetAtt StepFunctionsLambda.Arn
@@ -205,15 +205,6 @@ Resources:
       CodeUri: checkStatus/
       Handler: app.lambda_handler
       Runtime: python3.8
-      Tracing: Active
-      Role: !GetAtt StepFunctionsLambda.Arn
-  LaunchSimulationFunction:
-    Type: AWS::Serverless::Function 
-    Properties:
-      CodeUri: launchSimulations/
-      Handler: app.lambda_handler
-      Runtime: python3.8
-      Timeout: 60
       Tracing: Active
       Role: !GetAtt StepFunctionsLambda.Arn
   SendSimSummaryFunction:
@@ -247,129 +238,82 @@ Resources:
   SimulationRunnerStepFunction:
     Type: AWS::StepFunctions::StateMachine
     DependsOn:
-      - LaunchSimulationFunction
       - SendSimSummaryFunction
       - CheckStatusFunction
-      - ProcessInputFunction
+      - ProcessAndLaunchBatchSimulationsFunction
     Properties:
       DefinitionString: 
         !Sub |-        
          {
-            "StartAt": "ProcessInput",
+            "StartAt": "ProcessAndLaunchBatchSimulations",
                 "States": {
-                  "ProcessInput": {
+                  "ProcessAndLaunchBatchSimulations": {
                     "Type": "Task",
-                    "Resource": "${ProcessInputFunction.Arn}",
-                    "Next": "CheckInput",
+                    "Resource": "${ProcessAndLaunchBatchSimulationsFunction.Arn}",
+                    "Next": "IsBatchSimRunning",
                     "Catch": [ {
                       "ErrorEquals": ["States.ALL"],
                       "Next": "ErrorLaunchingSimulations",
                       "ResultPath": "$.error"
                      } ]
                   },
-                  "CheckInput": {
+                  "IsBatchSimRunning": {
                     "Type": "Choice",
                     "Choices": [
                       {
-                        "Variable": "$.isValid",
-                        "BooleanEquals":true,
-                        "Next": "LaunchSimulationRunner"
+                          "Variable": "$.isDone",
+                          "BooleanEquals": true,
+                          "Next": "SendSimSummary"
                       }
                     ],
-                    "Default": "ErrorLaunchingSimulations"
-                  },
-                  "LaunchSimulationRunner": {
-                    "Type": "Map",
-                    "InputPath": "$",
-                    "ItemsPath": "$.jobs",
-                    "MaxConcurrency": 5,
-                    "Iterator": {
-                      "StartAt": "LaunchSimulation",
-                      "States": {
-                        "LaunchSimulation": {
-                          "Type": "Task",
-                          "Resource": "${LaunchSimulationFunction.Arn}",
-                          "Retry": [
-                            {
-                              "ErrorEquals": [
-                                "TimeOut"
-                              ],
-                              "IntervalSeconds": 1,
-                              "BackoffRate": 2,
-                              "MaxAttempts": 2
-                            }
-                          ],
-                          "Next": "CheckStatus"
-                        },
-                        "CheckStatus": {
-                          "Type": "Task",
-                          "Resource": "${CheckStatusFunction.Arn}",
-                          "Next": "IsComplete"
-                        },
-                        "IsComplete": {
-                            "Type": "Choice",
-                            "Choices": [
-                              {
-                                "Variable": "$.isDone",
-                                "BooleanEquals": true,
-                                "Next": "EndChoice"
-                              }
-                            ],
-                            "Default": "Wait"
-                          },
-                        "Wait": {
-                          "Type": "Wait",
-                          "Seconds": 30,
-                          "Next": "CheckStatus"
-                        },
-                        "EndChoice": {
-                          "Type": "Pass",
-                          "End": true
-                        }
-                      }
+                    "Default": "Wait"
                     },
-                    "ResultPath": "$.results",
-                    "Next": "SendSimSummary",
-                    "Catch": [ {
-                      "ErrorEquals": ["States.ALL"],
-                      "Next": "ErrorLaunchingSimulations",
-                      "ResultPath": "$.error"
-                     } ]
-                  },
-                  "SendSimSummary": {
-                    "Type": "Task",
-                    "InputPath": "$",
-                    "Resource": "${SendSimSummaryFunction.Arn}",
-                    "ResultPath": "$.summary",
-                    "Catch": [ {
-                      "ErrorEquals": ["States.ALL"],
-                      "Next": "ErrorLaunchingSimulations",
-                      "ResultPath": "$.error"
-                     } ],
-                    "End": true
-                  },
-                  "ErrorLaunchingSimulations": {
-                     "Type": "Task",
-                     "InputPath": "$",
-                     "Resource": "${ErrorLaunchingSimulationsFunction.Arn}",
-                     "ResultPath": "$.error",
-                     "End": true
-                  }
+                    "Wait": {
+                        "Type": "Wait",
+                        "Seconds": 30,
+                        "Next": "CheckStatus"
+                    },
+                    "CheckStatus": {
+                      "Type": "Task",
+                      "Resource": "${CheckStatusFunction.Arn}",
+                      "InputPath": "$",
+                      "Next": "IsBatchSimRunning",
+                      "Catch": [ {
+                        "ErrorEquals": ["States.ALL"],
+                        "Next": "ErrorLaunchingSimulations",
+                        "ResultPath": "$.error"
+                       } ]
+                    },
+                    "SendSimSummary": {
+                      "Type": "Task",
+                      "InputPath": "$",
+                      "Resource": "${SendSimSummaryFunction.Arn}",
+                      "Catch": [ {
+                        "ErrorEquals": ["States.ALL"],
+                        "Next": "ErrorLaunchingSimulations",
+                        "ResultPath": "$.error"
+                       } ],
+                      "End": true
+                    },
+                    "ErrorLaunchingSimulations": {
+                       "Type": "Task",
+                       "InputPath": "$",
+                       "Resource": "${ErrorLaunchingSimulationsFunction.Arn}",
+                       "ResultPath": "$.error",
+                       "End": true
+                    }
               }
           }
       RoleArn: !GetAtt StepFunctionsLambda.Arn
       StateMachineName:
         Fn::Sub: SimulationRunnerStateMachine-${AWS::StackName}
 Outputs:
-  ProcessInputFunction:
-    Description: "Process Input Function ARN"
-    Value: !GetAtt ProcessInputFunction.Arn
+  ProcessAndLaunchBatchSimulationsFunction:
+    Description: "Process And Launch Sim Input Function ARN"
+    Value: !GetAtt ProcessAndLaunchBatchSimulationsFunction.Arn
   CheckStatusFunction:
     Description: "CheckStatus Function ARN"
     Value: !GetAtt CheckStatusFunction.Arn
-  LaunchSimulationFunction:
-    Description: "LaunchSimulation Function ARN"
-    Value: !GetAtt LaunchSimulationFunction.Arn
   SendSimSummaryFunction:
     Description: "SendSimSummary Function ARN"
     Value: !GetAtt SendSimSummaryFunction.Arn
