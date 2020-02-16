@@ -15,7 +15,7 @@ def lambda_handler(event, context):
 
     if event['status'] == 'Success':
         job_response = client.batch_describe_simulation_job( jobs = event['arns'] )
-        for job in job_response:
+        for job in job_response['jobs']:
             for key in job['tags'].keys():
                 if job_response['tags'][key] == 'Failed':
                     output['message'] = 'One or more tests failed in simulation.'
