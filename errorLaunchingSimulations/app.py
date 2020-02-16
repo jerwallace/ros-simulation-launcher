@@ -9,4 +9,4 @@ def lambda_handler(event, context):
             'message': event['error']['Cause']
     })
         
-    return "Simulations failed."
+    return 'Simulations failed.'
