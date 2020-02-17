@@ -112,11 +112,11 @@ The SAM CLI uses an Amazon S3 bucket to store your application's deployment arti
 
 Once ready, run the following commands to build, package and deploy this SAM application.
 
-````bash
+```bash
 sam build --use-container -m ./requirements.txt
 sam package --output-template-file package.yml --s3-bucket <YOUR_BUCKET>
 sam deploy --template-file package.yml --stack-name cicd_stack --capabilities CAPABILITY_NAMED_IAM --s3-bucket <YOUR_BUCKET>
-````
+```
 
 ## Add a resource to your application
 The application template uses AWS Serverless Application Model (AWS SAM) to define application resources. AWS SAM is an extension of AWS CloudFormation with a simpler syntax for configuring common serverless application resources such as functions, triggers, and APIs. For resources not included in [the SAM specification](https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md), you can use standard [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) resource types.
