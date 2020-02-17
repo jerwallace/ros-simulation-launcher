@@ -1,24 +1,3 @@
-
-'''
-    In this sample lambda function, multiple simulation jobs will be run based on a common configuration.
-    
-    Below is a sample event that you could use to invoke the lambda function and launch a set of simulations.
-    
-    {
-        'scenarios': {
-            '': {
-                'robotEnvironmentVariables': {}
-                'simEnvironmentVariables': {}
-            }
-        },
-        'simulations': [{
-            'scenarios': ['<SCENARIO_NAME>']
-            'params': CreateSimulationJobParams
-        }]
-    }
-    
-'''
-
 import json
 import time
 import uuid
@@ -29,17 +8,46 @@ from copy import deepcopy
 client = boto3.client('robomaker')
 
 def lambda_handler(event, context):
-    
+    '''
+        In this sample lambda function, multiple simulation jobs will be run based on a common configuration.
+        Below is a sample event that you could use to invoke the lambda function and launch a set of simulations.
+        
+        Input Event:
+        {
+            'codePipelineID': String | The ID of the CodePipeline job
+            'scenarios': {
+                '': {
+                    'robotEnvironmentVariables': {}
+                    'simEnvironmentVariables': {}
+                }
+            },
+            'simulations': [{
+                'scenarios': ['<SCENARIO_NAME>']
+                'params': CreateSimulationJobParams
+            }]
+        }
+
+        Output Event:
+        { 
+            isValid: Boolean | The input JSON structure is valid.
+            isDone: Boolean | If the batch simulation describe call returns complete.
+            batchSimJobArn: String | The ARN of the simulation batch.
+            status: String | InProgress, Success or Failed for downstream processing.
+            codePipelineJobId: String | The ID of the active CodePipeline job.
+        }
+    '''
+
     output = {
         'isValid': True,
         'isDone': False,
         'codePipelineJobId': event['codePipelineJobId'],
-        'batchSimJobArn': None,
-        'createdRequests': None
+        'batchSimJobArn': None
     }
     
     jobs = []
     
+    # This will loop through each defined simulation job and inject the environment variables for the scenarios associated.
+    # If parameters are not set in the input event JSON (Robot, Sim ARNs, Subnets, etc), it will use the defaults created from CloudFormation
     for simulation in event['simulations']:
             
         print('Preparing simulation %s...' % json.dumps(simulation))
@@ -90,17 +98,16 @@ def lambda_handler(event, context):
                 }
                 
         response = client.start_simulation_job_batch(
-        batchPolicy={
-            'timeoutInSeconds': 800,
-            'maxConcurrency': 2
-        }, 
-        createSimulationJobRequests=jobs, 
-        tags = {
-             'launcher': 'cicd_pipeline',
-             'codePipelineJobId': event['codePipelineJobId']
+            batchPolicy={
+                'timeoutInSeconds': 800,
+                'maxConcurrency': 2
+            }, 
+            createSimulationJobRequests=jobs, 
+            tags = {
+                'launcher': 'cicd_pipeline',
+                'codePipelineJobId': event['codePipelineJobId']
         })
         
         output['batchSimJobArn'] = response['arn']
-        output['createdRequests'] = response['createdRequests']
         
     return output
