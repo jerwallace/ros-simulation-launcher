@@ -3,7 +3,7 @@
 
 This serverless back end application will launch a batch set of simulations based on scenarios defined as groups of environment variable key-value pairs.
 
-[CICD Pipeline](images/cicd_pipeline.png)
+![CICD Pipeline](images/cicd_pipeline.png)
 
 The application consists of:
 - Step Functions State Machine 
@@ -17,7 +17,7 @@ The application consists of:
 - RoboMaker Simulation Scenarios Template Document (JSON,scenarios_template.json)
 - template.yaml - The template that creates all of the above resources.
 
-[State Machine](images/stepfunctions_workflow.png)
+![State Machine](images/stepfunctions_workflow.png)
 
 ## Event Structure
 
